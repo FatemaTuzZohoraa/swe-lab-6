@@ -1,7 +1,7 @@
 """STRATEGY pattern (behavioral): each member type has its own late-fine rule."""
 from abc import ABC, abstractmethod
 
-STUDENT_RATE = 5   # BDT per late day
+STUDENT_RATE = 10
 TEACHER_RATE = 2
 
 
