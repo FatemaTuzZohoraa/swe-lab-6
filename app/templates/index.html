@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Library</title></head>
+<body>
+<h1>Library</h1>
+<input id="title" placeholder="Title">
+<input id="author" placeholder="Author">
+<input id="copies" placeholder="Copies">
+<button id="add">Add book</button>
+<p id="msg"></p>
+<ul id="book-list"></ul>
+<script>
+const list = document.getElementById('book-list');
+async function load() {
+  const books = await (await fetch('/books')).json();
+  list.innerHTML = '';
+  books.forEach(b => {
+    const li = document.createElement('li');
+    li.textContent = `${b.title} by ${b.author} (${b.available}/${b.copies} available)`;
+    list.appendChild(li);
+  });
+}
+document.getElementById('add').onclick = async () => {
+  const body = {
+    title: document.getElementById('title').value,
+    author: document.getElementById('author').value,
+    copies: document.getElementById('copies').value};
+  const r = await fetch('/books', {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  document.getElementById('msg').textContent = r.ok ? 'Book added' : 'Invalid input';
+  load();
+};
+load();
+</script>
+</body></html>
