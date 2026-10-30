@@ -41,6 +41,10 @@ class MemberRepository(_Repo):
     def get(self, member_id):
         return self._one("SELECT * FROM members WHERE id=?", (member_id,))
 
+    def list(self):
+        # Privacy: emails are not returned in lists
+        return self._all("SELECT id, name, member_type FROM members ORDER BY name")
+
 
 class BookRepository(_Repo):
     def add(self, title, author, copies):
@@ -76,6 +80,12 @@ class LoanRepository(_Repo):
         return self._one(
             "SELECT 1 AS x FROM loans WHERE member_id=? AND book_id=? AND returned_on IS NULL",
             (member_id, book_id)) is not None
+
+    def list_active(self):
+        return self._all(
+            "SELECT l.id, l.borrowed_on, l.due_on, m.name AS member, b.title AS book "
+            "FROM loans l JOIN members m ON m.id=l.member_id JOIN books b ON b.id=l.book_id "
+            "WHERE l.returned_on IS NULL ORDER BY l.due_on")
 
     def mark_returned(self, loan_id, returned_on, fine):
         self._write("UPDATE loans SET returned_on=?, fine=? WHERE id=?",

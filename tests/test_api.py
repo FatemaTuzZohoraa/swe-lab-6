@@ -57,3 +57,14 @@ def test_return_unknown_loan(client):
 
 def test_swagger_page_available(client):
     assert client.get("/apidocs/").status_code == 200
+
+
+def test_list_members_hides_email_and_lists_active_loans(client):
+    mid, bid = _setup(client)
+    members = client.get("/members").get_json()
+    assert members[0]["name"] == "Rahim" and "email" not in members[0]
+    loan = client.post("/loans", json={"member_id": mid, "book_id": bid}).get_json()["id"]
+    active = client.get("/loans").get_json()
+    assert active[0]["book"] == "Python 101" and active[0]["member"] == "Rahim"
+    client.post(f"/loans/{loan}/return", json={})
+    assert client.get("/loans").get_json() == []
