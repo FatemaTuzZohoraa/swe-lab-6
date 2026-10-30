@@ -54,6 +54,17 @@ def add_member():
         return jsonify(error="Email already exists"), 409
 
 
+@bp.get("/members")
+def list_members():
+    """List members (emails hidden for privacy)
+    ---
+    tags: [Members]
+    responses:
+      200: {description: List of members}
+    """
+    return jsonify(svc()["members"].list())
+
+
 @bp.post("/books")
 def add_book():
     """Add a book
@@ -117,6 +128,17 @@ def borrow():
     if "member_id" not in d or "book_id" not in d:
         return jsonify(error="Invalid input"), 400
     return jsonify(id=svc()["loan"].borrow(d["member_id"], d["book_id"])), 201
+
+
+@bp.get("/loans")
+def list_active_loans():
+    """List books currently borrowed
+    ---
+    tags: [Loans]
+    responses:
+      200: {description: Active loans}
+    """
+    return jsonify(svc()["loans"].list_active())
 
 
 @bp.post("/loans/<int:loan_id>/return")

@@ -29,7 +29,7 @@ def create_app(config=None):
     bus.subscribe("book_returned", handler)
 
     app.extensions["svc"] = {
-        "members": members, "books": books,
+        "members": members, "books": books, "loans": loans,
         "loan": LoanService(members, books, loans, bus),
         "report": ReportService(loans)}
     Swagger(app)  # API docs at /apidocs/

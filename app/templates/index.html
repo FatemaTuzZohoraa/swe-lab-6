@@ -1,34 +1,221 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Library</title></head>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Library Book Manager</title>
+<style>
+  :root { --bg:#f4f6fb; --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+          --primary:#2563eb; --ok:#16a34a; --err:#dc2626; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: "Segoe UI", Arial, sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--primary); color:#fff; padding:18px 28px; }
+  header h1 { margin:0; font-size:24px; }
+  header p { margin:4px 0 0; opacity:.85; font-size:14px; }
+  main { max-width:1100px; margin:24px auto; padding:0 16px; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:20px; }
+  .stat { background:var(--card); border-radius:10px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .stat span { display:block; color:var(--muted); font-size:13px; }
+  .stat b { font-size:26px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+  .card { background:var(--card); border-radius:10px; padding:18px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .card h2 { margin:0 0 12px; font-size:17px; }
+  input, select { width:100%; padding:9px 10px; margin-bottom:10px; border:1px solid var(--line);
+                  border-radius:6px; font-size:14px; }
+  button { background:var(--primary); color:#fff; border:0; border-radius:6px; padding:9px 14px;
+           font-size:14px; cursor:pointer; }
+  button:hover { opacity:.9; }
+  button.small { padding:6px 10px; font-size:13px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  .wide { grid-column:1 / -1; overflow-x:auto; }
+  #msg { min-height:22px; margin:0 0 14px; font-weight:600; }
+  .ok { color:var(--ok); } .err { color:var(--err); }
+  .late { color:var(--err); font-weight:600; }
+  .empty { color:var(--muted); font-style:italic; }
+  .row { display:flex; gap:6px; align-items:center; }
+  .row input { margin:0; width:150px; }
+</style>
+</head>
 <body>
-<h1>Library</h1>
-<input id="title" placeholder="Title">
-<input id="author" placeholder="Author">
-<input id="copies" placeholder="Copies">
-<button id="add">Add book</button>
-<p id="msg"></p>
-<ul id="book-list"></ul>
+<header>
+  <h1>Library Book Manager</h1>
+  <p>Add books, register members, lend books for 14 days and collect late fines.</p>
+</header>
+<main>
+  <p id="msg"></p>
+
+  <section class="stats">
+    <div class="stat"><span>Total loans</span><b id="s-total">0</b></div>
+    <div class="stat"><span>Books out now</span><b id="s-active">0</b></div>
+    <div class="stat"><span>Fines collected (BDT)</span><b id="s-fines">0</b></div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>Add a book</h2>
+      <input id="title" placeholder="Title">
+      <input id="author" placeholder="Author">
+      <input id="copies" placeholder="Number of copies" type="number" min="1">
+      <button id="add">Add book</button>
+    </div>
+
+    <div class="card">
+      <h2>Register a member</h2>
+      <input id="m-name" placeholder="Name">
+      <input id="m-email" placeholder="Email" type="email">
+      <select id="m-type">
+        <option value="student">Student</option>
+        <option value="teacher">Teacher</option>
+      </select>
+      <button id="add-member">Register</button>
+    </div>
+
+    <div class="card">
+      <h2>Borrow a book</h2>
+      <select id="b-member"></select>
+      <select id="b-book"></select>
+      <button id="borrow">Borrow (due in 14 days)</button>
+    </div>
+
+    <div class="card wide">
+      <h2>Books</h2>
+      <table>
+        <thead><tr><th>Title</th><th>Author</th><th>Available</th></tr></thead>
+        <tbody id="book-list"></tbody>
+      </table>
+    </div>
+
+    <div class="card wide">
+      <h2>Borrowed books</h2>
+      <table>
+        <thead><tr><th>Book</th><th>Member</th><th>Due on</th><th>Return</th></tr></thead>
+        <tbody id="loan-list"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
 <script>
-const list = document.getElementById('book-list');
-async function load() {
-  const books = await (await fetch('/books')).json();
-  list.innerHTML = '';
+const $ = id => document.getElementById(id);
+const today = () => new Date().toISOString().slice(0, 10);
+
+function show(text, ok = true) {
+  $('msg').textContent = text;
+  $('msg').className = ok ? 'ok' : 'err';
+}
+
+async function api(method, url, body) {
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' },
+                               body: body ? JSON.stringify(body) : undefined });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Something went wrong');
+  return data;
+}
+
+// Build table cells with textContent (safe against HTML injection)
+function cell(tr, text, cls) {
+  const td = document.createElement('td');
+  td.textContent = text;
+  if (cls) td.className = cls;
+  tr.appendChild(td);
+  return td;
+}
+
+function emptyRow(tbody, cols, text) {
+  const tr = document.createElement('tr');
+  const td = cell(tr, text, 'empty');
+  td.colSpan = cols;
+  tbody.appendChild(tr);
+}
+
+function fillSelect(sel, items, label) {
+  sel.innerHTML = '';
+  if (!items.length) { sel.add(new Option('Nothing to choose yet', '')); return; }
+  items.forEach(i => sel.add(new Option(label(i), i.id)));
+}
+
+async function loadBooks() {
+  const books = await api('GET', '/books');
+  const tb = $('book-list'); tb.innerHTML = '';
+  if (!books.length) emptyRow(tb, 3, 'No books yet');
   books.forEach(b => {
-    const li = document.createElement('li');
-    li.textContent = `${b.title} by ${b.author} (${b.available}/${b.copies} available)`;
-    list.appendChild(li);
+    const tr = document.createElement('tr');
+    cell(tr, b.title); cell(tr, b.author); cell(tr, `${b.available} / ${b.copies}`);
+    tb.appendChild(tr);
+  });
+  fillSelect($('b-book'), books, b => `${b.title} (${b.available} left)`);
+}
+
+async function loadMembers() {
+  const members = await api('GET', '/members');
+  fillSelect($('b-member'), members, m => `${m.name} (${m.member_type})`);
+}
+
+async function loadLoans() {
+  const loans = await api('GET', '/loans');
+  const tb = $('loan-list'); tb.innerHTML = '';
+  if (!loans.length) emptyRow(tb, 4, 'No books are borrowed right now');
+  loans.forEach(l => {
+    const tr = document.createElement('tr');
+    cell(tr, l.book); cell(tr, l.member);
+    cell(tr, l.due_on, l.due_on < today() ? 'late' : '');
+    const td = cell(tr, '');
+    const row = document.createElement('div'); row.className = 'row';
+    const date = document.createElement('input'); date.type = 'date'; date.value = today();
+    const btn = document.createElement('button'); btn.className = 'small'; btn.textContent = 'Return';
+    btn.onclick = async () => {
+      try {
+        const r = await api('POST', `/loans/${l.id}/return`, { returned_on: date.value });
+        show(r.fine > 0 ? `Returned late. Fine: ${r.fine} BDT` : 'Returned on time. No fine.');
+        refresh();
+      } catch (e) { show(e.message, false); }
+    };
+    row.append(date, btn); td.appendChild(row);
+    tb.appendChild(tr);
   });
 }
-document.getElementById('add').onclick = async () => {
-  const body = {
-    title: document.getElementById('title').value,
-    author: document.getElementById('author').value,
-    copies: document.getElementById('copies').value};
-  const r = await fetch('/books', {method: 'POST',
-    headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-  document.getElementById('msg').textContent = r.ok ? 'Book added' : 'Invalid input';
-  load();
+
+async function loadReport() {
+  const s = await api('GET', '/reports/summary');
+  $('s-total').textContent = s.total_loans;
+  $('s-active').textContent = s.active_loans;
+  $('s-fines').textContent = s.total_fines;
+}
+
+function refresh() { loadBooks(); loadMembers(); loadLoans(); loadReport(); }
+
+$('add').onclick = async () => {
+  try {
+    await api('POST', '/books', { title: $('title').value, author: $('author').value,
+                                  copies: $('copies').value });
+    show('Book added');
+    $('title').value = $('author').value = $('copies').value = '';
+    refresh();
+  } catch (e) { show('Invalid input: fill title, author and copies', false); }
 };
-load();
+
+$('add-member').onclick = async () => {
+  try {
+    await api('POST', '/members', { name: $('m-name').value, email: $('m-email').value,
+                                    member_type: $('m-type').value });
+    show('Member registered');
+    $('m-name').value = $('m-email').value = '';
+    refresh();
+  } catch (e) { show(e.message, false); }
+};
+
+$('borrow').onclick = async () => {
+  try {
+    await api('POST', '/loans', { member_id: Number($('b-member').value),
+                                  book_id: Number($('b-book').value) });
+    show('Book borrowed. Due in 14 days.');
+    refresh();
+  } catch (e) { show(e.message, false); }
+};
+
+refresh();
 </script>
-</body></html>
+</body>
+</html>
