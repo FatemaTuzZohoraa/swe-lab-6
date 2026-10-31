@@ -33,5 +33,4 @@ pytest --cov=app         # tests + coverage
 ## Git workflow
 Branches: `feature/*`, `fix/*`, `docs/*`, `experiment/*`. Commit style: `feat:`, `test:`, `fix:`, `docs:`, `ci:`. Every change goes through a pull request.
 
-## AI usage statement
-[WRITE HONESTLY: which tool you used, for what, and that you can explain every part.]
+
